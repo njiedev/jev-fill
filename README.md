@@ -1,8 +1,8 @@
 # Jev Fill
 
-Jev Fill is a review-first Chrome extension for job applications. Paste one block containing your resume, contact details, links, and common answers. The extension scans the current form, proposes exact source values, and fills only the fields you select.
-
-The browser code owns form discovery, exact matching, filling, and validation. Jev only chooses among existing profile spans or the options already displayed by the form. It cannot invent a value in this workflow.
+simplify sucks so im making a better version with jev
+jev can see copy pasted textted and reason what part to paste and its hella fast so itll be goated for job apps
+sound send me $500k pls
 
 ## Current scope
 
