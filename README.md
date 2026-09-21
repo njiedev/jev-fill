@@ -1,8 +1,12 @@
 # Jev Fill
 
 simplify sucks so im making a better version with jev
-jev can see copy pasted textted and reason what part to paste and its hella fast so itll be goated for job apps
-sound send me $500k pls
+
+
+jev can see copy pasted texted and reason what part to paste and its hella fast so itll be goated for job apps
+
+
+someone send me $500k pls
 
 ## Current scope
 
