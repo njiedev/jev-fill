@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Jev Fill</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">J</span>
+          <div>
+            <p class="brand-name">Jev Fill</p>
+            <p class="brand-note">Review-first autofill</p>
+          </div>
+        </div>
+        <span id="server-status" class="status neutral">Checking</span>
+      </header>
+
+      <nav class="tabs" aria-label="Jev Fill views">
+        <button class="tab active" type="button" data-view="autofill" aria-selected="true">Autofill</button>
+        <button class="tab" type="button" data-view="profile" aria-selected="false">Profile</button>
+      </nav>
+
+      <section id="autofill-view" class="view">
+        <section class="page-context" aria-labelledby="page-title">
+          <p class="eyebrow">Current application</p>
+          <h1 id="page-title">Reading active page…</h1>
+          <p id="page-host" class="subtle">—</p>
+        </section>
+
+        <section class="source-row">
+          <div>
+            <p class="source-label">Profile source</p>
+            <p id="profile-state" class="subtle">Checking saved profile…</p>
+          </div>
+          <button id="edit-profile" class="text-button" type="button">Edit</button>
+        </section>
+
+        <section class="primary-flow">
+          <button id="scan" class="primary wide" type="button">Review autofill for this page</button>
+          <p id="message" class="message" aria-live="polite">Jev Fill scans only after you click review.</p>
+        </section>
+
+        <section id="results-section" class="results-section hidden" aria-labelledby="results-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Review</p>
+              <h2 id="results-title">Autofill plan</h2>
+            </div>
+            <span id="results-count" class="count"></span>
+          </div>
+          <div id="result-groups"></div>
+        </section>
+      </section>
+
+      <section id="profile-view" class="view hidden">
+        <section class="profile-intro">
+          <p class="eyebrow">Your source of truth</p>
+          <h1>Paste everything once</h1>
+          <p class="subtle">Contact details, links, work authorization, experience, projects, and reusable answers. This stays in Chrome storage on this device.</p>
+        </section>
+
+        <section class="editor-panel">
+          <label for="profile">Profile source</label>
+          <textarea id="profile" rows="18" placeholder="Name: …&#10;Email: …&#10;Phone: …&#10;Work authorization: …&#10;&#10;Experience&#10;…"></textarea>
+          <div class="save-row">
+            <span id="save-status" class="quiet"></span>
+            <button id="save" class="primary" type="button">Save profile</button>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer id="fill-bar" class="fill-bar hidden">
+      <div>
+        <strong id="selected-count">0 selected</strong>
+        <span>Nothing submits automatically</span>
+      </div>
+      <button id="apply" class="primary" type="button" disabled>Fill selected</button>
+    </footer>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>
