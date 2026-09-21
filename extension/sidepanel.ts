@@ -1,4 +1,5 @@
 import type { ApplyInstruction, FieldMatch, FormField, MatchResponse } from "../src/shared/types.js";
+import { siteAccessPattern } from "../src/shared/permissions.js";
 import { parseResumeFile } from "./resume.js";
 
 const profile = document.querySelector<HTMLTextAreaElement>("#profile")!;
@@ -37,6 +38,7 @@ type KeyState = { configured: boolean; persistence: "session" | "local" | null }
 let currentMatches: FieldMatch[] = [];
 let resumeName = "";
 let resumeBlock = "";
+let currentTab: chrome.tabs.Tab | null = null;
 
 function showView(view: keyof typeof views): void {
   for (const [name, element] of Object.entries(views)) element.classList.toggle("hidden", name !== view);
@@ -96,12 +98,22 @@ async function activeTab(): Promise<chrome.tabs.Tab> {
 async function updatePageContext(): Promise<void> {
   try {
     const tab = await activeTab();
+    currentTab = tab;
     pageTitle.textContent = tab.title || "Untitled application page";
     pageHost.textContent = tab.url ? new URL(tab.url).hostname.replace(/^www\./, "") : "Unknown site";
   } catch {
+    currentTab = null;
     pageTitle.textContent = "No active application page";
     pageHost.textContent = "Open a job application, then return here.";
   }
+}
+
+async function requestSiteAccess(): Promise<void> {
+  const tab = currentTab ?? await activeTab();
+  const origin = siteAccessPattern(tab.url);
+  if (!origin) throw new Error("Open a regular job application webpage first. Chrome system pages cannot be scanned.");
+  const granted = await chrome.permissions.request({ origins: [origin] });
+  if (!granted) throw new Error("Jev Fill needs access to this site to read and fill its application form.");
 }
 
 async function sendToPage<T>(payload: unknown): Promise<T> {
@@ -215,6 +227,12 @@ scanButton.addEventListener("click", async () => {
     resumeStatus.textContent = "Add a résumé or profile source before scanning.";
     return;
   }
+  try {
+    await requestSiteAccess();
+  } catch (error) {
+    setMessage(error instanceof Error ? error.message : "Site access was not granted.", true);
+    return;
+  }
   scanButton.disabled = true;
   scanButton.textContent = "Scanning visible fields…";
   fillBar.classList.add("hidden");
@@ -268,3 +286,7 @@ void chrome.storage.local.get(["profileText", "resumeName", "resumeBlock"]).then
 });
 void updatePageContext();
 void refreshKeyState();
+chrome.tabs.onActivated.addListener(() => { void updatePageContext(); });
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo, tab) => {
+  if (tab.active && (changeInfo.status || changeInfo.url || changeInfo.title)) void updatePageContext();
+});

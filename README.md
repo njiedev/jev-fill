@@ -37,6 +37,7 @@ In **Setup**:
 4. Review the parsed profile source and save it.
 
 Then open a job application and choose **Review autofill for this page**.
+The first time Jev Fill runs on a site, Chrome asks for access to that specific site. It does not request blanket access to every website.
 
 ## Privacy model
 
@@ -46,6 +47,7 @@ Then open a job application and choose **Review autofill for this page**.
 - Saved profile text stays in Chrome extension storage.
 - Profile text is sent to TypeSafe only when Jev is needed to match unresolved fields after the user starts a scan.
 - The API key is handled by the extension background worker and is never sent to job pages.
+- Website access is requested per origin when the user starts a scan.
 
 ## Development
 
