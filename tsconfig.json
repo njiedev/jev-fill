@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "types": ["chrome", "node", "vitest/globals"]
   },
-  "include": ["extension", "server", "src", "tests", "scripts"]
+  "include": ["extension", "src", "tests", "scripts"]
 }

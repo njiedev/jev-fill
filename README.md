@@ -2,53 +2,50 @@
 
 simplify sucks so im making a better version with jev
 
-
 jev can see copy pasted texted and reason what part to paste and its hella fast so itll be goated for job apps
-
 
 someone send me $500k pls
 
-## Current scope
+Add your TypeSafe API key and résumé once, open an application, and review the values Jev Fill proposes before anything is placed into the form. There is no localhost server and users do not run `npm start`.
 
-- Standard text inputs, textareas, selects, radio groups, and visible form fields
-- Exact matching for common labeled profile values
-- Jev matching for unfamiliar fields
-- Local-only profile storage through Chrome extension storage
-- Manual preview before every fill
-- No automatic submission
-- Sensitive and voluntary-disclosure questions always left for manual review
+## What it does
 
-File uploads, custom shadow-DOM controls, multipage automation, application tracking, and generated essay answers are intentionally deferred.
+- Imports PDF, DOCX, and TXT résumés locally
+- Lets you edit the parsed source and add contact details, links, work authorization, or reusable answers
+- Matches common labeled facts without an API request
+- Uses Jev for unfamiliar fields, constrained to existing profile spans and form options
+- Groups exact matches, Jev suggestions, and manual-review fields
+- Fills only selected values and never submits an application
+- Leaves sensitive and voluntary-disclosure questions for manual review
 
-## Setup
+## Install the development build
 
 Requires Node.js 20 or newer.
 
 ```sh
 npm install
-cp .env.example .env
+npm run build
 ```
 
-Add `TYPESAFE_API_KEY` to `.env`. Do not put the key in the extension or commit it.
+Open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select this project's `dist` folder. Click Jev Fill's toolbar button to open the side panel.
 
-Build and verify:
+In **Setup**:
 
-```sh
-npm run verify
-```
+1. Paste a TypeSafe API key and choose whether Chrome should remember it on this device.
+2. Click **Verify & save**.
+3. Choose a PDF, DOCX, or TXT résumé.
+4. Review the parsed profile source and save it.
 
-Start the local matcher:
+Then open a job application and choose **Review autofill for this page**.
 
-```sh
-set -a
-source .env
-set +a
-npm start
-```
+## Privacy model
 
-Then open `chrome://extensions`, enable Developer mode, choose **Load unpacked**, and select the absolute `dist` folder in this project. Pin Jev Fill, open a job application, and click its toolbar button.
-
-Without a TypeSafe key, the server still runs in exact-match mode so the deterministic path can be tested.
+- A session-only API key is removed when Chrome closes.
+- A remembered key is held in Chrome extension storage on the device; that storage is not encrypted.
+- The original résumé file is parsed locally and is not uploaded.
+- Saved profile text stays in Chrome extension storage.
+- Profile text is sent to TypeSafe only when Jev is needed to match unresolved fields after the user starts a scan.
+- The API key is handled by the extension background worker and is never sent to job pages.
 
 ## Development
 
@@ -56,4 +53,6 @@ Without a TypeSafe key, the server still runs in exact-match mode so the determi
 npm run dev
 ```
 
-Reload the unpacked extension after its build changes. Profile text stays on the device. A matching request is sent only to the localhost service after **Scan this form** is clicked; the localhost service sends the pasted profile to TypeSafe only when Jev matching is needed.
+Reload the unpacked extension after a rebuild. Run `npm run verify` before shipping changes.
+
+Custom shadow-DOM controls, multipage automation, application tracking, and generated essay answers are not part of the current version.

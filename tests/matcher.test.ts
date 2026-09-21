@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { matchForm } from "../server/matcher.js";
+import { matchForm } from "../src/shared/matcher.js";
 import type { FormField } from "../src/shared/types.js";
 
 const fields: FormField[] = [

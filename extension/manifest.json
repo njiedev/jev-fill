@@ -2,9 +2,9 @@
   "manifest_version": 3,
   "name": "Jev Fill",
   "version": "0.1.0",
-  "description": "Review-first job application autofill from one pasted profile block.",
+  "description": "Review-first job application autofill powered by your resume and Jev.",
   "permissions": ["activeTab", "scripting", "sidePanel", "storage"],
-  "host_permissions": ["http://127.0.0.1:8788/*"],
+  "host_permissions": ["https://api.typesafe.ai/*"],
   "background": {
     "service_worker": "background.js"
   },

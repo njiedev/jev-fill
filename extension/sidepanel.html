@@ -16,12 +16,12 @@
             <p class="brand-note">Review-first autofill</p>
           </div>
         </div>
-        <span id="server-status" class="status neutral">Checking</span>
+        <span id="connection-status" class="status neutral">Checking</span>
       </header>
 
       <nav class="tabs" aria-label="Jev Fill views">
         <button class="tab active" type="button" data-view="autofill" aria-selected="true">Autofill</button>
-        <button class="tab" type="button" data-view="profile" aria-selected="false">Profile</button>
+        <button class="tab" type="button" data-view="setup" aria-selected="false">Setup</button>
       </nav>
 
       <section id="autofill-view" class="view">
@@ -56,21 +56,45 @@
         </section>
       </section>
 
-      <section id="profile-view" class="view hidden">
+      <section id="setup-view" class="view hidden">
         <section class="profile-intro">
-          <p class="eyebrow">Your source of truth</p>
-          <h1>Paste everything once</h1>
-          <p class="subtle">Contact details, links, work authorization, experience, projects, and reusable answers. This stays in Chrome storage on this device.</p>
+          <p class="eyebrow">One-time setup</p>
+          <h1>Connect Jev and add your résumé</h1>
+          <p class="subtle">Your key and profile stay inside this Chrome extension, never on a localhost server.</p>
         </section>
 
-        <section class="editor-panel">
-          <label for="profile">Profile source</label>
-          <textarea id="profile" rows="18" placeholder="Name: …&#10;Email: …&#10;Phone: …&#10;Work authorization: …&#10;&#10;Experience&#10;…"></textarea>
-          <div class="save-row">
-            <span id="save-status" class="quiet"></span>
-            <button id="save" class="primary" type="button">Save profile</button>
-          </div>
-        </section>
+        <div class="setup-stack">
+          <section class="setup-card">
+            <div class="card-heading">
+              <div><p class="source-label">TypeSafe API key</p><p id="key-status" class="subtle">Checking connection…</p></div>
+            </div>
+            <label class="sr-only" for="api-key">TypeSafe API key</label>
+            <input id="api-key" class="field-input" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your API key" />
+            <label class="checkbox-row"><input id="remember-key" type="checkbox" checked /> Remember on this device</label>
+            <div class="key-actions">
+              <button id="save-key" class="primary" type="button">Verify &amp; save</button>
+              <button id="remove-key" class="secondary hidden" type="button">Remove</button>
+            </div>
+            <p class="setup-note">Remembered keys use Chrome's device storage and are not encrypted. Turn this off to keep the key only until Chrome closes.</p>
+          </section>
+
+          <section class="setup-card">
+            <p class="source-label">Résumé</p>
+            <p id="resume-status" class="subtle">Add a PDF, DOCX, or TXT file.</p>
+            <input id="resume-file" class="hidden" type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" />
+            <button id="choose-resume" class="secondary wide" type="button">Choose résumé</button>
+            <p class="setup-note">Parsing happens locally. The original file is never uploaded.</p>
+          </section>
+
+          <section class="editor-panel">
+            <label for="profile">Profile source</label>
+            <textarea id="profile" rows="14" placeholder="Your parsed résumé appears here. Add contact details, work authorization, links, and reusable answers."></textarea>
+            <div class="save-row">
+              <span id="save-status" class="quiet"></span>
+              <button id="save" class="primary" type="button">Save profile</button>
+            </div>
+          </section>
+        </div>
       </section>
     </main>
 

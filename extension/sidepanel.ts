@@ -1,13 +1,21 @@
 import type { ApplyInstruction, FieldMatch, FormField, MatchResponse } from "../src/shared/types.js";
+import { parseResumeFile } from "./resume.js";
 
-const SERVER = "http://127.0.0.1:8788";
 const profile = document.querySelector<HTMLTextAreaElement>("#profile")!;
 const saveButton = document.querySelector<HTMLButtonElement>("#save")!;
 const scanButton = document.querySelector<HTMLButtonElement>("#scan")!;
 const applyButton = document.querySelector<HTMLButtonElement>("#apply")!;
 const editProfileButton = document.querySelector<HTMLButtonElement>("#edit-profile")!;
 const saveStatus = document.querySelector<HTMLElement>("#save-status")!;
-const serverStatus = document.querySelector<HTMLElement>("#server-status")!;
+const connectionStatus = document.querySelector<HTMLElement>("#connection-status")!;
+const keyStatus = document.querySelector<HTMLElement>("#key-status")!;
+const apiKey = document.querySelector<HTMLInputElement>("#api-key")!;
+const rememberKey = document.querySelector<HTMLInputElement>("#remember-key")!;
+const saveKeyButton = document.querySelector<HTMLButtonElement>("#save-key")!;
+const removeKeyButton = document.querySelector<HTMLButtonElement>("#remove-key")!;
+const resumeFile = document.querySelector<HTMLInputElement>("#resume-file")!;
+const chooseResumeButton = document.querySelector<HTMLButtonElement>("#choose-resume")!;
+const resumeStatus = document.querySelector<HTMLElement>("#resume-status")!;
 const message = document.querySelector<HTMLElement>("#message")!;
 const profileState = document.querySelector<HTMLElement>("#profile-state")!;
 const pageTitle = document.querySelector<HTMLElement>("#page-title")!;
@@ -20,10 +28,15 @@ const selectedCount = document.querySelector<HTMLElement>("#selected-count")!;
 const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".tab"));
 const views = {
   autofill: document.querySelector<HTMLElement>("#autofill-view")!,
-  profile: document.querySelector<HTMLElement>("#profile-view")!,
+  setup: document.querySelector<HTMLElement>("#setup-view")!,
 };
 
+type ExtensionResponse<T> = { ok: true } & T | { ok: false; error: string };
+type KeyState = { configured: boolean; persistence: "session" | "local" | null };
+
 let currentMatches: FieldMatch[] = [];
+let resumeName = "";
+let resumeBlock = "";
 
 function showView(view: keyof typeof views): void {
   for (const [name, element] of Object.entries(views)) element.classList.toggle("hidden", name !== view);
@@ -43,8 +56,35 @@ function setMessage(value: string, error = false): void {
 function updateProfileState(): void {
   const text = profile.value.trim();
   const lines = text ? text.split(/\r?\n/).filter((line) => line.trim()).length : 0;
-  profileState.textContent = text ? `${lines} source line${lines === 1 ? "" : "s"} saved on this device` : "No profile source saved yet";
-  scanButton.textContent = text ? "Review autofill for this page" : "Add profile source first";
+  profileState.textContent = resumeName
+    ? `${resumeName} · ${lines} source line${lines === 1 ? "" : "s"}`
+    : text ? `${lines} source line${lines === 1 ? "" : "s"} saved on this device` : "No résumé or profile saved yet";
+  scanButton.textContent = text ? "Review autofill for this page" : "Add your résumé first";
+}
+
+async function extensionMessage<T>(payload: unknown): Promise<T> {
+  const response = await chrome.runtime.sendMessage(payload) as ExtensionResponse<T>;
+  if (!response?.ok) throw new Error(response?.error || "Jev Fill could not complete this request.");
+  return response;
+}
+
+function renderKeyState(state: KeyState): void {
+  connectionStatus.textContent = state.configured ? "Jev ready" : "Add key";
+  connectionStatus.className = `status ${state.configured ? "good" : "neutral"}`;
+  keyStatus.textContent = state.configured
+    ? state.persistence === "local" ? "Connected · remembered on this device" : "Connected · this Chrome session"
+    : "Not connected";
+  removeKeyButton.classList.toggle("hidden", !state.configured);
+}
+
+async function refreshKeyState(): Promise<void> {
+  try {
+    renderKeyState(await extensionMessage<KeyState>({ type: "JEV_FILL_KEY_STATUS" }));
+  } catch {
+    connectionStatus.textContent = "Setup needed";
+    connectionStatus.className = "status bad";
+    keyStatus.textContent = "Could not read extension storage.";
+  }
 }
 
 async function activeTab(): Promise<chrome.tabs.Tab> {
@@ -64,51 +104,26 @@ async function updatePageContext(): Promise<void> {
   }
 }
 
-async function ensureContentScript(tabId: number): Promise<void> {
-  await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
-}
-
 async function sendToPage<T>(payload: unknown): Promise<T> {
   const tab = await activeTab();
-  await ensureContentScript(tab.id!);
+  await chrome.scripting.executeScript({ target: { tabId: tab.id! }, files: ["content.js"] });
   return chrome.tabs.sendMessage(tab.id!, payload) as Promise<T>;
 }
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>'"]/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "'": "&#39;",
-    '"': "&quot;",
-  })[character]!);
+  return value.replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]!);
 }
 
 function resultMarkup(match: FieldMatch): string {
   const badge = match.source === "deterministic" ? "Exact" : match.source === "jev" ? "Jev" : "Manual";
+  const badgeClass = match.source === "deterministic" ? "exact" : match.source;
   const confidence = match.confidence === null ? "" : ` · ${Math.round(match.confidence * 100)}% confidence`;
-  return `
-    <label class="result">
-      <input type="checkbox" data-field-id="${escapeHtml(match.fieldId)}" ${match.selectedByDefault ? "checked" : ""} ${match.value === null ? "disabled" : ""} />
-      <span class="result-main">
-        <span class="field-label">${escapeHtml(match.fieldLabel)}</span>
-        <span class="field-value">${escapeHtml(match.displayValue ?? match.reason)}</span>
-        <span class="field-meta">${escapeHtml(match.reason + confidence)}</span>
-      </span>
-      <span class="badge ${match.source === "deterministic" ? "exact" : match.source === "jev" ? "jev" : "manual"}">${badge}</span>
-    </label>`;
+  return `<label class="result"><input type="checkbox" data-field-id="${escapeHtml(match.fieldId)}" ${match.selectedByDefault ? "checked" : ""} ${match.value === null ? "disabled" : ""} /><span class="result-main"><span class="field-label">${escapeHtml(match.fieldLabel)}</span><span class="field-value">${escapeHtml(match.displayValue ?? match.reason)}</span><span class="field-meta">${escapeHtml(match.reason + confidence)}</span></span><span class="badge ${badgeClass}">${badge}</span></label>`;
 }
 
 function groupMarkup(title: string, note: string, matches: FieldMatch[], open: boolean): string {
   if (!matches.length) return "";
-  return `
-    <details class="result-group" ${open ? "open" : ""}>
-      <summary>
-        <span><span class="group-title">${escapeHtml(title)}</span><span class="group-note">${escapeHtml(note)}</span></span>
-        <span class="group-count">${matches.length}</span>
-      </summary>
-      <div>${matches.map(resultMarkup).join("")}</div>
-    </details>`;
+  return `<details class="result-group" ${open ? "open" : ""}><summary><span><span class="group-title">${escapeHtml(title)}</span><span class="group-note">${escapeHtml(note)}</span></span><span class="group-count">${matches.length}</span></summary><div>${matches.map(resultMarkup).join("")}</div></details>`;
 }
 
 function updateSelectedCount(): void {
@@ -130,32 +145,63 @@ function renderMatches(matches: FieldMatch[]): void {
     groupMarkup("Jev suggestions", "Select after checking the source value", jev, true),
     groupMarkup("Manual review", "Missing, sensitive, or unsupported", manual, manual.length > 0 && fillable === 0),
   ].join("");
-  resultGroups.addEventListener("change", updateSelectedCount);
   fillBar.classList.toggle("hidden", fillable === 0);
   scanButton.textContent = "Refresh autofill plan";
   updateSelectedCount();
 }
 
-async function checkServer(): Promise<void> {
-  try {
-    const response = await fetch(`${SERVER}/health`);
-    if (!response.ok) throw new Error("Server unavailable");
-    const health = await response.json() as { jevConfigured: boolean };
-    serverStatus.textContent = health.jevConfigured ? "Jev ready" : "Exact only";
-    serverStatus.className = `status ${health.jevConfigured ? "good" : "neutral"}`;
-  } catch {
-    serverStatus.textContent = "Offline";
-    serverStatus.className = "status bad";
-  }
-}
+for (const tab of tabs) tab.addEventListener("click", () => showView(tab.dataset.view as keyof typeof views));
+editProfileButton.addEventListener("click", () => showView("setup"));
+resultGroups.addEventListener("change", updateSelectedCount);
 
-for (const tab of tabs) {
-  tab.addEventListener("click", () => showView(tab.dataset.view as keyof typeof views));
-}
-editProfileButton.addEventListener("click", () => showView("profile"));
+saveKeyButton.addEventListener("click", async () => {
+  saveKeyButton.disabled = true;
+  saveKeyButton.textContent = "Verifying…";
+  keyStatus.textContent = "Checking this key with TypeSafe…";
+  try {
+    const state = await extensionMessage<KeyState>({ type: "JEV_FILL_VALIDATE_KEY", apiKey: apiKey.value, remember: rememberKey.checked });
+    apiKey.value = "";
+    renderKeyState(state);
+  } catch (error) {
+    keyStatus.textContent = error instanceof Error ? error.message : "Could not verify this key.";
+  } finally {
+    saveKeyButton.disabled = false;
+    saveKeyButton.textContent = "Verify & save";
+  }
+});
+
+removeKeyButton.addEventListener("click", async () => {
+  renderKeyState(await extensionMessage<KeyState>({ type: "JEV_FILL_REMOVE_KEY" }));
+});
+
+chooseResumeButton.addEventListener("click", () => resumeFile.click());
+resumeFile.addEventListener("change", async () => {
+  const file = resumeFile.files?.[0];
+  if (!file) return;
+  chooseResumeButton.disabled = true;
+  resumeStatus.textContent = `Reading ${file.name}…`;
+  try {
+    const parsed = await parseResumeFile(file);
+    const nextBlock = `Resume source: ${file.name}\n\n${parsed}`;
+    const remaining = resumeBlock && profile.value.includes(resumeBlock)
+      ? profile.value.replace(resumeBlock, "").trim()
+      : profile.value.trim();
+    profile.value = [remaining, nextBlock].filter(Boolean).join("\n\n");
+    resumeName = file.name;
+    resumeBlock = nextBlock;
+    await chrome.storage.local.set({ profileText: profile.value, resumeName, resumeBlock });
+    resumeStatus.textContent = `${file.name} parsed locally. Review the text below.`;
+    updateProfileState();
+  } catch (error) {
+    resumeStatus.textContent = error instanceof Error ? error.message : "Could not read this résumé.";
+  } finally {
+    chooseResumeButton.disabled = false;
+    resumeFile.value = "";
+  }
+});
 
 saveButton.addEventListener("click", async () => {
-  await chrome.storage.local.set({ profileText: profile.value });
+  await chrome.storage.local.set({ profileText: profile.value, resumeName, resumeBlock });
   updateProfileState();
   saveStatus.textContent = "Saved on this device";
   setTimeout(() => { saveStatus.textContent = ""; }, 1800);
@@ -165,43 +211,37 @@ saveButton.addEventListener("click", async () => {
 
 scanButton.addEventListener("click", async () => {
   if (!profile.value.trim()) {
-    showView("profile");
-    saveStatus.textContent = "Paste your source before scanning.";
-    profile.focus();
+    showView("setup");
+    resumeStatus.textContent = "Add a résumé or profile source before scanning.";
     return;
   }
   scanButton.disabled = true;
   scanButton.textContent = "Scanning visible fields…";
   fillBar.classList.add("hidden");
-  setMessage("Reading the current page and matching exact source values…");
+  setMessage("Reading the current page and matching your saved facts…");
   try {
-    await chrome.storage.local.set({ profileText: profile.value });
+    await chrome.storage.local.set({ profileText: profile.value, resumeName, resumeBlock });
     const page = await sendToPage<{ fields: FormField[] }>({ type: "JEV_FILL_SCAN" });
     if (!page.fields.length) throw new Error("No visible form fields found on this page.");
     setMessage(`Matching ${page.fields.length} visible fields…`);
-    const response = await fetch(`${SERVER}/match`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profileText: profile.value, fields: page.fields }),
+    const body = await extensionMessage<{ result: MatchResponse }>({
+      type: "JEV_FILL_MATCH",
+      request: { profileText: profile.value, fields: page.fields },
     });
-    const body = await response.json() as MatchResponse & { error?: string };
-    if (!response.ok) throw new Error(body.error ?? "Matching failed.");
-    renderMatches(body.matches);
-    setMessage(body.warnings[0] ?? "Check the grouped plan. Jev suggestions stay unselected until you approve them.");
+    renderMatches(body.result.matches);
+    setMessage(body.result.warnings[0] ?? "Check the grouped plan. Jev suggestions stay unselected until you approve them.");
   } catch (error) {
     setMessage(error instanceof Error ? error.message : "Could not scan this form.", true);
     scanButton.textContent = "Try scanning again";
   } finally {
     scanButton.disabled = false;
-    void checkServer();
+    void refreshKeyState();
     void updatePageContext();
   }
 });
 
 applyButton.addEventListener("click", async () => {
-  const selectedIds = new Set(
-    Array.from(resultGroups.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked')).map((input) => input.dataset.fieldId),
-  );
+  const selectedIds = new Set(Array.from(resultGroups.querySelectorAll<HTMLInputElement>('input[type="checkbox"]:checked')).map((input) => input.dataset.fieldId));
   const instructions: ApplyInstruction[] = currentMatches
     .filter((match) => match.value !== null && selectedIds.has(match.fieldId))
     .map((match) => ({ fieldId: match.fieldId, value: match.value! }));
@@ -219,9 +259,12 @@ applyButton.addEventListener("click", async () => {
   }
 });
 
-void chrome.storage.local.get("profileText").then((stored) => {
+void chrome.storage.local.get(["profileText", "resumeName", "resumeBlock"]).then((stored) => {
   profile.value = typeof stored.profileText === "string" ? stored.profileText : "";
+  resumeName = typeof stored.resumeName === "string" ? stored.resumeName : "";
+  resumeBlock = typeof stored.resumeBlock === "string" ? stored.resumeBlock : "";
+  if (resumeName) resumeStatus.textContent = `${resumeName} is saved. Choose another file to replace it.`;
   updateProfileState();
 });
 void updatePageContext();
-void checkServer();
+void refreshKeyState();

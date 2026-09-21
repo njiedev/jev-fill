@@ -1,22 +1,20 @@
-import { choice, TypeSafeClient } from "@typesafe-ai/sdk";
-
-import { extractCandidates } from "../src/shared/candidates.js";
-import { deterministicMatch } from "../src/shared/deterministic.js";
+import { extractCandidates } from "./candidates.js";
+import { deterministicMatch } from "./deterministic.js";
 import type {
   FieldMatch,
   FormField,
   MatchResponse,
   ProfileCandidate,
-} from "../src/shared/types.js";
+} from "./types.js";
 
 const NONE = "none";
 
-type ChoiceAnswer = {
+export type ChoiceAnswer = {
   choice: string;
   confidence: number;
 };
 
-type AskChoices = (
+export type AskChoices = (
   profileText: string,
   fields: FormField[],
   candidates: ProfileCandidate[],
@@ -57,31 +55,25 @@ function criteriaFor(field: FormField, candidates: ProfileCandidate[]): Record<s
   ]);
 }
 
-export function makeTypeSafeAsker(model: string): AskChoices {
-  return async (profileText, fields, candidates) => {
-    const client = new TypeSafeClient();
-    const questions = Object.fromEntries(
-      fields.map((field) => [
-        field.id,
-        choice(
-          [
-            `Choose the exact answer for the job application field ${JSON.stringify(field.label)}.`,
-            "Use only facts explicitly stated in `profile`.",
-            "Do not infer preferences, legal status, protected traits, or missing facts.",
-            "Choose `none` when the profile is ambiguous or does not contain the answer.",
-          ].join(" "),
-          criteriaFor(field, candidates),
-        ),
-      ]),
-    );
-
-    const response = await client.systemOne({
-      state: { profile: profileText },
-      questions,
-      model,
-    });
-    return response.answers as Record<string, ChoiceAnswer>;
-  };
+export function buildChoiceQuestions(
+  fields: FormField[],
+  candidates: ProfileCandidate[],
+): Record<string, unknown> {
+  return Object.fromEntries(
+    fields.map((field) => [
+      field.id,
+      {
+        type: "choice",
+        instructions: [
+          `Choose the exact answer for the job application field ${JSON.stringify(field.label)}.`,
+          "Use only facts explicitly stated in `profile`.",
+          "Do not infer preferences, legal status, protected traits, or missing facts.",
+          "Choose `none` when the profile is ambiguous or does not contain the answer.",
+        ].join(" "),
+        criteria: criteriaFor(field, candidates),
+      },
+    ]),
+  );
 }
 
 export async function matchForm(
@@ -107,11 +99,10 @@ export async function matchForm(
   }
 
   const unresolved = fields.filter((field) => !matches.has(field.id));
-  const model = options.model ?? process.env.TYPESAFE_MODEL ?? "jev-1.13";
-  const askChoices = options.askChoices ?? (process.env.TYPESAFE_API_KEY ? makeTypeSafeAsker(model) : null);
+  const model = options.model ?? "jev-latest";
 
-  if (unresolved.length && askChoices) {
-    const answers = await askChoices(profileText, unresolved, candidates);
+  if (unresolved.length && options.askChoices) {
+    const answers = await options.askChoices(profileText, unresolved, candidates);
     for (const field of unresolved) {
       const answer = answers[field.id];
       if (!answer || answer.choice === NONE) {
@@ -133,7 +124,7 @@ export async function matchForm(
           displayValue: selected.label,
           confidence: answer.confidence,
           source: "jev",
-          reason: "Jev selected one of the form's exact options from the pasted profile.",
+          reason: "Jev selected one of the form's exact options from the profile source.",
           selectedByDefault: false,
         });
         continue;
@@ -151,20 +142,20 @@ export async function matchForm(
         displayValue: candidate.value,
         confidence: answer.confidence,
         source: "jev",
-        reason: "Jev selected an exact span from the pasted profile.",
+        reason: "Jev selected an exact span from the profile source.",
         selectedByDefault: false,
       });
     }
   } else if (unresolved.length) {
-    warnings.push("TYPESAFE_API_KEY is not configured. Only exact labeled matches are available.");
+    warnings.push("Add a TypeSafe API key in Setup to enable Jev matching. Exact labeled matches are still available.");
     for (const field of unresolved) {
-      matches.set(field.id, manualMatch(field, "No exact match; start the local server with a TypeSafe key for Jev matching."));
+      matches.set(field.id, manualMatch(field, "No exact match; add a TypeSafe API key in Setup for Jev matching."));
     }
   }
 
   return {
     matches: fields.map((field) => matches.get(field.id) ?? manualMatch(field, "No match available.")),
     warnings,
-    model: askChoices ? model : null,
+    model: options.askChoices ? model : null,
   };
 }

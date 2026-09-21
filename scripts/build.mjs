@@ -12,6 +12,7 @@ await Promise.all([
   cp(resolve(root, "extension/manifest.json"), resolve(dist, "manifest.json")),
   cp(resolve(root, "extension/sidepanel.html"), resolve(dist, "sidepanel.html")),
   cp(resolve(root, "extension/sidepanel.css"), resolve(dist, "sidepanel.css")),
+  cp(resolve(root, "node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs"), resolve(dist, "pdf.worker.min.mjs")),
 ]);
 
 const extensionOptions = {
@@ -34,15 +35,4 @@ if (watch) {
   console.log(`Watching extension sources. Load ${dist} as an unpacked extension.`);
 } else {
   await build(extensionOptions);
-  await build({
-    entryPoints: [resolve(root, "server/index.ts")],
-    bundle: true,
-    packages: "external",
-    platform: "node",
-    format: "esm",
-    target: "node20",
-    outfile: resolve(root, "dist-server/index.mjs"),
-    sourcemap: true,
-    logLevel: "info",
-  });
 }
